@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mirror Dungeon</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+:root{--lm-red:#c41e3a;--lm-gold:#d4af37;--lm-dark:#08080e;--lm-card:#111119;--lm-border:#1e1e2e;--lm-muted:#55556a;--lm-text:#d0d0dd;--lm-panel:#0d0d16}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Rajdhani',sans-serif;background:var(--lm-dark);color:var(--lm-text);overflow:hidden;height:100vh}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:var(--lm-dark)}::-webkit-scrollbar-thumb{background:var(--lm-muted);border-radius:4px}
+.mono{font-family:'Share Tech Mono',monospace}
+.screen{display:none;width:100%;height:100vh;position:absolute;top:0;left:0}.screen.active{display:flex}
+.role-btn{transition:all .3s;border:1px solid var(--lm-border);position:relative;overflow:hidden}
+.role-btn::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,transparent 40%,rgba(196,30,58,.08));opacity:0;transition:opacity .3s}
+.role-btn:hover{border-color:var(--lm-red);transform:translateY(-2px);box-shadow:0 4px 20px rgba(196,30,58,.15)}.role-btn:hover::before{opacity:1}
+.hp-bar{height:8px;border-radius:4px;background:#1a1a2a;overflow:hidden}
+.hp-fill{height:100%;border-radius:4px;transition:width .5s ease}
+.skill-card{border:2px solid var(--lm-border);border-radius:8px;padding:10px 12px;cursor:pointer;transition:all .25s;background:var(--lm-card)}
+.skill-card:hover:not(.disabled){border-color:var(--lm-gold);transform:translateY(-2px);box-shadow:0 4px 20px rgba(212,175,55,.12)}
+.skill-card.selected{border-color:var(--lm-gold);box-shadow:0 0 20px rgba(212,175,55,.2)}
+.skill-card.disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
+.status-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:600}
+.gift-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;font-size:11px;background:rgba(212,175,55,.1);border:1px solid rgba(212,175,55,.25);color:var(--lm-gold)}
+.node-btn{border:1px solid var(--lm-border);border-radius:10px;padding:14px 20px;cursor:pointer;transition:all .3s;background:var(--lm-card)}
+.node-btn:hover{border-color:var(--lm-red);transform:scale(1.03);box-shadow:0 0 25px rgba(196,30,58,.15)}
+.log-entry{padding:3px 0;border-bottom:1px solid rgba(255,255,255,.03);font-size:12px;line-height:1.4}
+.toast{animation:slideIn .3s ease,fadeOut .5s ease 2.5s forwards;position:relative;padding:10px 18px;border-radius:8px;font-size:14px;font-weight:500;border-left:3px solid var(--lm-gold);background:var(--lm-card);box-shadow:0 8px 30px rgba(0,0,0,.5)}
+@keyframes slideIn{from{transform:translateX(100px);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes fadeOut{to{opacity:0;transform:translateY(-10px)}}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.modal-box{background:var(--lm-panel);border:1px solid var(--lm-border);border-radius:14px;padding:28px;max-width:750px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.coin-flip{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#d4af37,#b8941f);color:#000;font-weight:700;font-size:13px;margin:0 2px;animation:coinPop .3s ease}
+@keyframes coinPop{from{transform:scale(0) rotate(180deg)}to{transform:scale(1) rotate(0)}}
+.bg-noise{position:fixed;inset:0;opacity:.03;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");pointer-events:none;z-index:0}
+.glow-line{height:1px;background:linear-gradient(90deg,transparent,var(--lm-red),transparent);opacity:.3}
+.tab-btn{padding:6px 14px;border-radius:6px;font-size:13px;cursor:pointer;transition:all .2s;border:1px solid transparent;background:transparent;color:var(--lm-muted)}
+.tab-btn.active{background:rgba(196,30,58,.15);border-color:var(--lm-red);color:var(--lm-text)}
+.tab-btn:hover:not(.active){color:var(--lm-text)}
+.dm-only{display:none}[data-role="dm"] .dm-only{display:block}[data-role="dm"] .dm-only-flex{display:flex}
+.player-only{display:none}[data-role="p1"] .player-only,[data-role="p2"] .player-only,[data-role="p3"] .player-only,[data-role="p4"] .player-only{display:block}
+.enemy-skill-hidden{filter:blur(5px);user-select:none;pointer-events:none}
+.pulse{animation:pulse 2s ease-in-out infinite}@keyframes pulse{0%,100%{opacity:.6}50%{opacity:1}}
+.float-anim{animation:floatY 3s ease-in-out infinite}@keyframes floatY{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+input[type=number],input[type=text],select{background:var(--lm-dark);border:1px solid var(--lm-border);color:var(--lm-text);border-radius:6px;padding:5px 8px;font-family:'Share Tech Mono',monospace;font-size:12px;outline:none}
+input[type=number]:focus,input[type=text]:focus,select:focus{border-color:var(--lm-red)}
+</style>
+</head>
+<body>
+<div class="bg-noise"></div>
+
+<!-- ROLE SELECT -->
+<div id="screen-role" class="screen active flex-col items-center justify-center gap-6 relative z-10">
+  <div class="text-center mb-4">
+    <h1 class="text-5xl font-bold tracking-wider" style="color:var(--lm-red)">MIRROR DUNGEON</h1>
+    <p class="mono text-sm mt-3" style="color:var(--lm-muted)">OPEN MULTIPLE TABS — EACH PLAYER PICKS THEIR ROLE</p>
+  </div>
+  <div class="flex flex-wrap gap-4 justify-center max-w-2xl">
+    <button class="role-btn rounded-xl p-6 w-56 text-center bg-[#111119]" onclick="selectRole('dm')">
+      <i class="fa-solid fa-eye text-3xl mb-3" style="color:var(--lm-red)"></i>
+      <div class="text-lg font-bold">DUNGEON MASTER</div>
+      <div class="text-xs mt-1" style="color:var(--lm-muted)">Full control & enemy management</div>
+    </button>
+    <button class="role-btn rounded-xl p-6 w-36 text-center bg-[#111119]" onclick="selectRole('p1')">
+      <i class="fa-solid fa-user text-2xl mb-2" style="color:var(--lm-gold)"></i>
+      <div class="text-base font-bold">PLAYER 1</div>
+    </button>
+    <button class="role-btn rounded-xl p-6 w-36 text-center bg-[#111119]" onclick="selectRole('p2')">
+      <i class="fa-solid fa-user text-2xl mb-2" style="color:var(--lm-gold)"></i>
+      <div class="text-base font-bold">PLAYER 2</div>
+    </button>
+    <button class="role-btn rounded-xl p-6 w-36 text-center bg-[#111119]" onclick="selectRole('p3')">
+      <i class="fa-solid fa-user text-2xl mb-2" style="color:var(--lm-gold)"></i>
+      <div class="text-base font-bold">PLAYER 3</div>
+    </button>
+    <button class="role-btn rounded-xl p-6 w-36 text-center bg-[#111119]" onclick="selectRole('p4')">
+      <i class="fa-solid fa-user text-2xl mb-2" style="color:var(--lm-gold)"></i>
+      <div class="text-base font-bold">PLAYER 4</div>
+    </button>
+  </div>
+  <p class="mono text-xs mt-6" style="color:var(--lm-muted)">DM creates the session first. Players join after.</p>
+</div>
+
+<!-- LOBBY -->
+<div id="screen-lobby" class="screen flex-col items-center justify-center gap-6 relative z-10">
+  <h2 class="text-2xl font-bold">Waiting for Players</h2>
+  <div id="lobby-list" class="flex gap-4 flex-wrap justify-center"></div>
+  <button id="btn-start" class="hidden px-8 py-3 rounded-lg font-bold text-lg" style="background:var(--lm-red);color:#fff" onclick="startDungeon()">Start Dungeon</button>
+  <p class="mono text-xs" style="color:var(--lm-muted)">All 5 roles (DM + 4 Players) must connect before starting.</p>
+</div>
+
+<!-- GAME -->
+<div id="screen-game" class="screen flex-col relative z-10">
+  <header class="flex items-center justify-between px-5 py-3 border-b flex-shrink-0" style="border-color:var(--lm-border);background:var(--lm-panel)">
+    <div class="flex items-center gap-4">
+      <span class="font-bold text-lg" style="color:var(--lm-red)">MIRROR DUNGEON</span>
+      <span id="hdr-floor" class="mono text-sm" style="color:var(--lm-muted)"></span>
+    </div>
+    <div id="hdr-phase" class="mono text-sm font-bold" style="color:var(--lm-gold)"></div>
+    <div class="flex items-center gap-2">
+      <span id="hdr-role" class="mono text-sm"></span>
+      <button class="dm-only text-xs px-3 py-1 rounded" style="background:var(--lm-card);border:1px solid var(--lm-border);color:var(--lm-muted)" onclick="openEditor()"><i class="fa-solid fa-wrench mr-1"></i>Editor</button>
+      <button class="dm-only text-xs px-3 py-1 rounded" style="background:var(--lm-card);border:1px solid var(--lm-border);color:var(--lm-muted)" onclick="exportState()"><i class="fa-solid fa-download mr-1"></i>Save</button>
+      <label class="dm-only text-xs px-3 py-1 rounded cursor-pointer" style="background:var(--lm-card);border:1px solid var(--lm-border);color:var(--lm-muted)"><i class="fa-solid fa-upload mr-1"></i>Load<input type="file" accept=".json" class="hidden" onchange="importState(event)"></label>
+    </div>
+  </header>
+  <main class="flex flex-1 overflow-hidden">
+    <aside id="panel-left" class="w-72 border-r overflow-y-auto p-4 flex-shrink-0" style="border-color:var(--lm-border);background:var(--lm-panel)"></aside>
+    <section id="panel-center" class="flex-1 overflow-y-auto p-4"></section>
+    <aside id="panel-right" class="w-80 border-l overflow-y-auto p-4 flex-shrink-0" style="border-color:var(--lm-border);background:var(--lm-panel)"></aside>
+  </main>
+  <footer class="border-t px-4 py-2 overflow-y-auto flex-shrink-0" style="border-color:var(--lm-border);background:var(--lm-panel);height:110px">
+    <div class="flex items-center gap-2 mb-1">
+      <i class="fa-solid fa-scroll text-xs" style="color:var(--lm-gold)"></i>
+      <span class="text-xs font-bold" style="color:var(--lm-muted)">BATTLE LOG</span>
+      <button class="text-xs ml-auto" style="color:var(--lm-muted)" onclick="clearLog()">Clear</button>
+    </div>
+    <div id="log-content" class="mono" style="color:var(--lm-muted)"></div>
+  </footer>
+</div>
+
+<!-- MODAL -->
+<div id="modal-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeModal()">
+  <div id="modal-body" class="modal-box"></div>
+</div>
+
+<!-- TOASTS -->
+<div id="toast-container" class="fixed top-4 right-4 flex flex-col gap-2 z-50"></div>
+
+<script>
+/* ================================================================
+   SECTION 1: CUSTOMIZABLE DATA — EDIT HERE TO ADD YOUR CONTENT
+   ================================================================ */
+
+const STATUS_DB = {
+  burn:     {name:"Burn",    icon:"fa-fire",          color:"#ff6b35", type:"dot",           desc:"Takes {v} damage at turn start", stackable:true, max:99},
+  rupture:  {name:"Rupture", icon:"fa-burst",         color:"#dc143c", type:"on_hit_bonus",  desc:"Take +{v} damage when hit", stackable:true, max:99},
+  tremor:   {name:"Tremor",  icon:"fa-bolt",          color:"#c9a227", type:"threshold",     desc:"At 5+ stacks becomes Stun", stackable:true, max:10, threshold:5, becomes:"stun"},
+  stun:     {name:"Stun",    icon:"fa-star",          color:"#ffd700", type:"skip_turn",     desc:"Cannot act this turn", stackable:false, max:1},
+  bind:     {name:"Bind",    icon:"fa-link",          color:"#4a90d9", type:"prevent_skill", desc:"Cannot use skills for {v} turns", stackable:true, max:5},
+  bleed:    {name:"Bleed",   icon:"fa-droplet",       color:"#8b0000", type:"dot",           desc:"Takes {v} damage at turn start", stackable:true, max:99},
+  frail:    {name:"Frail",   icon:"fa-heart-crack",   color:"#9b59b6", type:"dmg_taken_up",  desc:"Take {v}x10% more damage", stackable:true, max:5},
+  atk_up:   {name:"Atk Up",  icon:"fa-arrow-up",      color:"#2ecc71", type:"atk_up",        desc:"Attack +{v}", stackable:true, max:10},
+  def_up:   {name:"Def Up",  icon:"fa-shield",        color:"#3498db", type:"def_up",        desc:"Defense +{v}", stackable:true, max:10},
+  def_down: {name:"Def Down",icon:"fa-shield-halved", color:"#e74c3c", type:"def_down",      desc:"Defense -{v}", stackable:true, max:10},
+  poison:   {name:"Poison",  icon:"fa-skull-crossbones",color:"#00cc66",type:"dot",          desc:"Takes {v} damage at turn start", stackable:true, max:99},
+  // ADD CUSTOM STATUS EFFECTS HERE:
+  // my_effect: {name:"My Effect",icon:"fa-star",color:"#fff",type:"dot",desc:"...",stackable:true,max:99},
+};
+
+const SIN_TYPES = ["wrath","lust","sloth","gluttony","gloom","pride","envy"];
+const SIN_COLORS = {wrath:"#ff4444",lust:"#ff69b4",sloth:"#9b9bff",gluttony:"#ff8c00",gloom:"#7b68ee",pride:"#ffd700",envy:"#00cc88"};
+const SIN_ICONS = {wrath:"fa-hand-fist",lust:"fa-heart",sloth:"fa-moon",gluttony:"fa-drumstick-bite",gloom:"fa-cloud",pride:"fa-crown",envy:"fa-snake"};
+
+// SINNER TEMPLATES — Edit stats and skills. Add more by copying a block.
+const SINNER_TEMPLATES = [
+  {
+    id:"yisang",name:"Yi Sang",maxHp:130,speed:5,defense:4,attack:5,sinAff:"gloom",
+    skills:[
+      {id:"ys1",name:"Pierce",type:"offensive",coins:1,coinMin:3,coinMax:7,baseValue:4,sin:"gloom",target:"single",applyTo:[],selfApply:[],desc:"A precise thrust."},
+      {id:"ys2",name:"Dissection",type:"offensive",coins:2,coinMin:3,coinMax:6,baseValue:5,sin:"gloom",target:"single",applyTo:[{type:"bleed",value:3,chance:100}],selfApply:[],desc:"Analytical strike. Bleed 3."},
+      {id:"ys3",name:"Gloom Symphony",type:"offensive",coins:3,coinMin:2,coinMax:5,baseValue:6,sin:"gloom",target:"single",applyTo:[],selfApply:[{type:"def_up",value:2,chance:100}],desc:"Sweeping crescendo. Self Def Up 2."}
+    ]
+  },
+  {
+    id:"heathcliff",name:"Heathcliff",maxHp:150,speed:4,defense:3,attack:7,sinAff:"wrath",
+    skills:[
+      {id:"hc1",name:"Bash",type:"offensive",coins:1,coinMin:4,coinMax:8,baseValue:5,sin:"wrath",target:"single",applyTo:[],selfApply:[],desc:"A heavy strike."},
+      {id:"hc2",name:"Wrathful Charge",type:"offensive",coins:2,coinMin:3,coinMax:7,baseValue:6,sin:"wrath",target:"single",applyTo:[{type:"burn",value:2,chance:80}],selfApply:[{type:"atk_up",value:1,chance:100}],desc:"Ignites with fury. Burn 2, Self Atk Up 1."},
+      {id:"hc3",name:"Unleash",type:"offensive",coins:3,coinMin:2,coinMax:6,baseValue:7,sin:"wrath",target:"aoe_enemy",applyTo:[{type:"burn",value:3,chance:100}],selfApply:[],desc:"Hits all enemies. Burn 3."}
+    ]
+  },
+  {
+    id:"ishmael",name:"Ishmael",maxHp:120,speed:6,defense:3,attack:4,sinAff:"lust",
+    skills:[
+      {id:"im1",name:"Harpoon",type:"offensive",coins:1,coinMin:3,coinMax:7,baseValue:4,sin:"lust",target:"single",applyTo:[{type:"bind",value:1,chance:70}],selfApply:[],desc:"Harpoon that may Bind."},
+      {id:"im2",name:"Tidal Slash",type:"offensive",coins:2,coinMin:3,coinMax:6,baseValue:5,sin:"lust",target:"single",applyTo:[{type:"rupture",value:4,chance:100}],selfApply:[],desc:"Rupture 4."},
+      {id:"im3",name:"Ahab's Fury",type:"offensive",coins:2,coinMin:4,coinMax:8,baseValue:8,sin:"lust",target:"single",applyTo:[{type:"rupture",value:5,chance:100},{type:"def_down",value:2,chance:100}],selfApply:[],desc:"Rupture 5 + Def Down 2."}
+    ]
+  },
+  {
+    id:"rodion",name:"Rodion",maxHp:140,speed:3,defense:4,attack:5,sinAff:"gluttony",
+    skills:[
+      {id:"rd1",name:"Axe Swing",type:"offensive",coins:1,coinMin:3,coinMax:8,baseValue:5,sin:"gluttony",target:"single",applyTo:[],selfApply:[],desc:"Brutal axe swing."},
+      {id:"rd2",name:"Feast",type:"support",coins:1,coinMin:4,coinMax:8,baseValue:8,sin:"gluttony",target:"self",applyTo:[],selfApply:[{type:"atk_up",value:2,chance:100},{type:"def_up",value:1,chance:100}],desc:"Atk Up 2, Def Up 1."},
+      {id:"rd3",name:"Gluttonous Cleave",type:"offensive",coins:2,coinMin:3,coinMax:7,baseValue:7,sin:"gluttony",target:"single",applyTo:[{type:"bleed",value:4,chance:100}],selfApply:[],desc:"Bleed 4."}
+    ]
+  }
+  // ADD MORE SINNERS HERE — copy a block, change id/name/stats/skills
+];
+
+// ENEMY TEMPLATES — Add custom enemies here
+const ENEMY_TEMPLATES = {
+  knave:{id:"knave",name:"Knave of La Mancha",maxHp:70,speed:3,defense:2,attack:4,isBoss:false,actionsPerTurn:1,
+    skills:[
+      {id:"kn1",name:"Lunge",type:"offensive",coins:1,coinMin:2,coinMax:5,baseValue:3,sin:"sloth",target:"single",applyTo:[],selfApply:[],desc:"Clumsy lunge."},
+      {id:"kn2",name:"Shield Bash",type:"offensive",coins:1,coinMin:3,coinMax:6,baseValue:4,sin:"sloth",target:"single",applyTo:[{type:"stun",value:1,chance:30}],selfApply:[],desc:"30% Stun."}
+    ]},
+  butcher:{id:"butcher",name:"Butcher",maxHp:100,speed:4,defense:3,attack:6,isBoss:false,actionsPerTurn:1,
+    skills:[
+      {id:"bt1",name:"Chop",type:"offensive",coins:1,coinMin:3,coinMax:7,baseValue:5,sin:"gluttony",target:"single",applyTo:[{type:"bleed",value:2,chance:80}],selfApply:[],desc:"Bleed 2 (80%)."},
+      {id:"bt2",name:"Cleave",type:"offensive",coins:2,coinMin:2,coinMax:5,baseValue:6,sin:"gluttony",target:"aoe_enemy",applyTo:[{type:"bleed",value:2,chance:60}],selfApply:[],desc:"AoE Bleed 2."}
+    ]},
+  // ADD CUSTOM ENEMIES:
+  // my_enemy:{id:"my_enemy",name:"My Enemy",maxHp:80,speed:3,defense:2,attack:5,isBoss:false,actionsPerTurn:1,skills:[...]}
+};
+
+// BOSS TEMPLATES — Set isBoss:true, actionsPerTurn for multi-action per turn
+const BOSS_TEMPLATES = {
+  gibeon_mini:{id:"gibeon_mini",name:"Gibeon (Weakened)",maxHp:250,speed:5,defense:5,attack:7,isBoss:true,actionsPerTurn:2,
+    skills:[
+      {id:"gb1",name:"Golden Slash",type:"offensive",coins:2,coinMin:4,coinMax:8,baseValue:7,sin:"pride",target:"single",applyTo:[{type:"frail",value:1,chance:80}],selfApply:[],desc:"Frail 1 (80%)."},
+      {id:"gb2",name:"Mirror Reflection",type:"defensive",coins:1,coinMin:5,coinMax:9,baseValue:10,sin:"pride",target:"self",applyTo:[],selfApply:[{type:"def_up",value:3,chance:100},{type:"atk_up",value:2,chance:100}],desc:"Def Up 3, Atk Up 2."},
+      {id:"gb3",name:"Judgment",type:"offensive",coins:3,coinMin:3,coinMax:7,baseValue:8,sin:"pride",target:"single",applyTo:[{type:"burn",value:5,chance:100},{type:"rupture",value:3,chance:100}],selfApply:[],desc:"Burn 5 + Rupture 3."},
+      {id:"gb4",name:"Golden Storm",type:"offensive",coins:2,coinMin:3,coinMax:6,baseValue:6,sin:"pride",target:"aoe_enemy",applyTo:[{type:"tremor",value:2,chance:100}],selfApply:[],desc:"AoE Tremor 2."}
+    ]},
+  final_boss:{id:"final_boss",name:"The Mirror King",maxHp:500,speed:6,defense:6,attack:9,isBoss:true,actionsPerTurn:3,
+    skills:[
+      {id:"fk1",name:"Crown Strike",type:"offensive",coins:2,coinMin:5,coinMax:9,baseValue:9,sin:"pride",target:"single",applyTo:[{type:"frail",value:2,chance:100}],selfApply:[],desc:"Frail 2."},
+      {id:"fk2",name:"Reflection Wall",type:"defensive",coins:1,coinMin:6,coinMax:10,baseValue:12,sin:"gloom",target:"self",applyTo:[],selfApply:[{type:"def_up",value:5,chance:100}],desc:"Def Up 5."},
+      {id:"fk3",name:"Mirror Realm",type:"offensive",coins:3,coinMin:4,coinMax:8,baseValue:10,sin:"gloom",target:"aoe_enemy",applyTo:[{type:"burn",value:4,chance:100},{type:"tremor",value:3,chance:100},{type:"rupture",value:3,chance:100}],selfApply:[],desc:"AoE Burn 4, Tremor 3, Rupture 3."},
+      {id:"fk4",name:"King's Decree",type:"offensive",coins:2,coinMin:5,coinMax:9,baseValue:8,sin:"pride",target:"single",applyTo:[{type:"bind",value:2,chance:100},{type:"stun",value:1,chance:50}],selfApply:[{type:"atk_up",value:3,chance:100}],desc:"Bind 2, 50% Stun. Self Atk Up 3."}
+    ]}
+  // ADD CUSTOM BOSSES
+};
+
+// EGO GIFTS — scope:"all"=all sinners, "self"=holder only
+const EGO_GIFTS_DB = {
+  gift_001:{id:"gift_001",name:"Wrecking Ball",desc:"+3 Attack to all",icon:"fa-hammer",effect:{type:"stat_atk",value:3,scope:"all"}},
+  gift_002:{id:"gift_002",name:"Iron Wall",desc:"+3 Defense to all",icon:"fa-shield-halved",effect:{type:"stat_def",value:3,scope:"all"}},
+  gift_003:{id:"gift_003",name:"Swift Boots",desc:"+2 Speed to all",icon:"fa-shoe-prints",effect:{type:"stat_spd",value:2,scope:"all"}},
+  gift_004:{id:"gift_004",name:"Life Blood",desc:"+20 Max HP to all",icon:"fa-heart-pulse",effect:{type:"stat_hp",value:20,scope:"all"}},
+  gift_005:{id:"gift_005",name:"Burn Salve",desc:"Immune to Burn",icon:"fa-fire-extinguisher",effect:{type:"status_immune",value:"burn",scope:"all"}},
+  gift_006:{id:"gift_006",name:"Rupture Guard",desc:"Immune to Rupture",icon:"fa-bandage",effect:{type:"status_immune",value:"rupture",scope:"all"}},
+  gift_007:{id:"gift_007",name:"Battle Focus",desc:"+5 Attack to holder",icon:"fa-crosshairs",effect:{type:"stat_atk",value:5,scope:"self"}},
+  gift_008:{id:"gift_008",name:"Fortress",desc:"+5 Defense to holder",icon:"fa-chess-rook",effect:{type:"stat_def",value:5,scope:"self"}},
+  // ADD CUSTOM GIFTS
+};
+
+// EVENTS
+const EVENTS_DB = {
+  mirror_shard: {
+    name: "Mirror Shard",
+    desc: "A crystallized mirror fragment reflects a distorted face.",
+    choices: [
+      { text: "Pick it up", outcome: { type: "ego_gift", gift: "gift_007", msg: "You gain Battle Focus." } },
+      { text: "Crush it", outcome: { type: "damage", value: 15, msg: "Shards embed in your hand. -15 HP to all." } },
+      { text: "Leave it", outcome: { type: "nothing", msg: "You walk past." } }
+    ]
+  },
+  blood_pool: {
+    name: "Pool of Blood",
+    desc: "A dark pool of blood. It seems alive.",
+    choices: [
+      { text: "Drink from it", outcome: { type: "heal", value: 30, msg: "+30 HP to all." } },
+      { text: "Test with a stick", outcome: { type: "status", effect: { type: "atk_up", value: 2 }, msg: "Atk Up 2 to all." } },
+      { text: "Avoid it", outcome: { type: "nothing", msg: "Best not." } }
+    ]
+  },
+  wandering_merchant: {
+    name: "Wandering Merchant",
+    desc: "A hooded figure offers goods.",
+    choices: [
+      { text: "Trade (-20 HP for gift)", outcome: { type: "ego_gift", gift: "gift_005", msg: "-20 HP, gain Burn Salve.", cost: { type: "damage", value: 20 } } },
+      { text: "Rob them", outcome: { type: "ego_gift", gift: "gift_001", msg: "Gain Wrecking Ball.", cost: { type: "status", effect: { type: "def_down", value: 2 } } } },
+      { text: "Decline", outcome: { type: "nothing", msg: "The merchant vanishes." } }
+    ]
+  }
+  // ← Add your custom events here like this:
+  // ,
+  // my_event: {
+  //   name: "My Event",
+  //   desc: "Something happens.",
+  //   choices: [
+  //     { text: "Option A", outcome: { type: "heal", value: 20, msg: "+20 HP." } },
+  //     { text: "Option B", outcome: { type: "nothing", msg: "Nothing happens." } }
+  //   ]
+  // }
+};
+
+// DUNGEON LAYOUT — each node: {type, enemies[], eventId, desc}
+const DUNGEON_LAYOUT = {
+  name:"Mirror Dungeon: Shattered Reflection",
+  floors:[
+    {number:1, nodes:[
+      {type:"battle",enemies:["knave","knave","knave"],desc:"Three Knaves block the corridor."},
+      {type:"event",eventId:"mirror_shard",desc:"Something glints ahead..."},
+      {type:"battle",enemies:["butcher","knave"],desc:"A Butcher and Knave patrol."},
+    ],shop:true,boss:{type:"battle",enemies:["gibeon_mini"],desc:"A grand hall opens before you."}},
+    {number:2, nodes:[
+      {type:"battle",enemies:["butcher","butcher"],desc:"Two Butchers stand guard."},
+      {type:"event",eventId:"blood_pool",desc:"A foul smell fills the air..."},
+      {type:"battle",enemies:["knave","knave","butcher"],desc:"Mixed patrol."},
+      {type:"event",eventId:"wandering_merchant",desc:"Footsteps behind you..."},
+    ],shop:true,boss:{type:"battle",enemies:["gibeon_mini","knave"],desc:"Gibeon returns, reinforced."}},
+    {number:3, nodes:[
+      {type:"battle",enemies:["butcher","butcher","butcher"],desc:"The final approach."},
+      {type:"event",eventId:"mirror_shard",desc:"One last shard..."},
+    ],shop:false,boss:{type:"battle",enemies:["final_boss"],desc:"The Mirror King awaits."}}
+  ]
+};
+
+/* ================================================================
+   SECTION 2: UTILITIES
+   ================================================================ */
+const ROLES = ['dm','p1','p2','p3','p4'];
+const ROLE_NAMES = {dm:'Dungeon Master',p1:'Player 1',p2:'Player 2',p3:'Player 3',p4:'Player 4'};
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
+function clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v))}
+function rng(lo,hi){return Math.floor(Math.random()*(hi-lo+1))+lo}
+function dc(o){return JSON.parse(JSON.stringify(o))}
+function getEffectDef(type){return STATUS_DB[type]||{name:type,icon:"fa-question",color:"#888",type:"dot",desc:"",stackable:true,max:99}}
+function hasImmunity(unit,type){return (unit.egoGifts||[]).some(gid=>{const g=EGO_GIFTS_DB[gid];return g&&g.effect.type==="status_immune"&&g.effect.value===type})}
+function getStat(unit,stat){
+  let b=unit[stat]||0;
+  (unit.egoGifts||[]).forEach(gid=>{const g=EGO_GIFTS_DB[gid];if(!g)return;if(g.effect.type==="stat_"+stat)b+=g.effect.value});
+  (unit.statusEffects||[]).forEach(e=>{if(e.type==="atk_up"&&stat==="attack")b+=e.stacks;if(e.type==="def_up"&&stat==="defense")b+=e.stacks;if(e.type==="def_down"&&stat==="defense")b-=e.stacks});
+  return Math.max(0,b);
+}
+function getMaxHp(unit){
+  let b=unit.maxHp;
+  (unit.egoGifts||[]).forEach(gid=>{const g=EGO_GIFTS_DB[gid];if(!g)return;if(g.effect.type==="stat_hp")b+=g.effect.value});
+  return b;
+}
+function hpColor(c,m){const r=c/Math.max(1,m);return r>.6?"#2ecc71":r>.3?"#f39c12":"#e74c3c"}
+
+/* ================================================================
+   SECTION 3: STATE MANAGEMENT
+   ================================================================ */
+let MY_ROLE = null;
+let GS = null;
+let LOG = [];
+
+function freshState(){
+  return {phase:"lobby",currentFloor:0,currentNode:0,sinners:[],enemies:[],battle:null,connectedRoles:{},eventActive:null,shopGifts:[],version:uid()};
+}
+function initSinners(){
+  GS.sinners = SINNER_TEMPLATES.map((t,i)=>({
+    ...dc(t), uid:uid(), hp:t.maxHp, statusEffects:[], egoGifts:[], playerRole:ROLES[i+1], alive:true
+  }));
+}
+function saveGS(){try{localStorage.setItem('limbus_gs',JSON.stringify(GS))}catch(e){}}
+function loadGS(){try{const d=localStorage.getItem('limbus_gs');if(d)GS=JSON.parse(d)}catch(e){}}
+function updateGS(fn){fn(GS);GS.version=uid();saveGS();render()}
+
+/* ================================================================
+   SECTION 4: CROSS-TAB COMMUNICATION (localStorage)
+   ================================================================ */
+function sendMsg(type,data){
+  try{localStorage.setItem('limbus_msg',JSON.stringify({type,data,from:MY_ROLE,ts:Date.now()}))}catch(e){}
+}
+window.addEventListener('storage',e=>{
+  if(e.key==='limbus_gs'){try{const n=JSON.parse(e.newValue);if(n&&n.version!==GS?.version){GS=n;render()}}catch(ex){}}
+  if(e.key==='limbus_msg'){try{handleMsg(JSON.parse(e.newValue))}catch(ex){}}
+});
+function handleMsg(msg){
+  if(!msg||msg.from===MY_ROLE)return;
+  if(MY_ROLE==='dm'){
+    if(msg.type==='join'){updateGS(s=>{s.connectedRoles[msg.from]=true});showToast(ROLE_NAMES[msg.from]+" connected")}
+    if(msg.type==='skill_select'){updateGS(s=>{if(s.battle)s.battle.playerSelections[msg.from]={skillId:msg.data.skillId,targetId:msg.data.targetId}});showToast(ROLE_NAMES[msg.from]+" selected a skill")}
+    if(msg.type==='node_choice'){updateGS(s=>{s.battle=null;s.eventActive=null;advanceToNode(msg.data.index)})}
+    if(msg.type==='event_choice'){updateGS(s=>resolveEvent(msg.data.index))}
+    if(msg.type==='shop_pick'){updateGS(s=>resolveShopPick(msg.from,msg.data.giftId))}
+  }
+}
+
+/* ================================================================
+   SECTION 5: BATTLE ENGINE
+   ================================================================ */
+function spawnEnemies(ids){
+  GS.enemies=[];
+  ids.forEach(tid=>{
+    const t=BOSS_TEMPLATES[tid]||ENEMY_TEMPLATES[tid];if(!t)return;
+    GS.enemies.push({...dc(t),uid:uid(),hp:t.maxHp,statusEffects:[],egoGifts:[],alive:true,selectedActions:[]});
+  });
+}
+function startBattle(){
+  GS.phase="battle";
+  GS.battle={turn:1,playerSelections:{},awaitingPlayers:true};
+  GS.sinners.forEach(s=>{if(s.alive)s.statusEffects=s.statusEffects.filter(e=>e.type!=="stun")});
+  GS.enemies.forEach(e=>{if(e.alive){e.statusEffects=e.statusEffects.filter(x=>x.type!=="stun");e.selectedActions=[]}});
+  saveGS();render();
+}
+function flipCoin(lo,hi){return rng(lo,hi)}
+function resolveSkill(skill){
+  const coins=[];for(let i=0;i<skill.coins;i++)coins.push(flipCoin(skill.coinMin,skill.coinMax));
+  return {coins,coinTotal:coins.reduce((a,b)=>a+b,0),total:skill.baseValue+coins.reduce((a,b)=>a+b,0)};
+}
+function calcDamage(total,atk,def){
+  const a=getStat(atk,'attack'),d=getStat(def,'defense');
+  const frail=1+getEffectStacks(def,'frail')*0.1;
+  const rup=getEffectStacks(def,'rupture');
+  return Math.max(1,Math.floor((a+total-d)*frail)+rup);
+}
+function getEffectStacks(unit,type){const e=(unit.statusEffects||[]).find(s=>s.type===type);return e?e.stacks:0}
+function applyEffects(unit,effects){
+  if(!effects||!unit)return;
+  effects.forEach(ef=>{
+    if(Math.random()*100>ef.chance)return;
+    if(hasImmunity(unit,ef.type)){addLog(`<span style="color:${getEffectDef(ef.type).color}">${unit.name} immune to ${getEffectDef(ef.type).name}!</span>`);return}
+    const def=getEffectDef(ef.type);
+    const existing=(unit.statusEffects||[]).find(s=>s.type===ef.type);
+    if(existing&&def.stackable){existing.stacks=clamp(existing.stacks+ef.value,0,def.max||99)}
+    else if(!existing){if(!unit.statusEffects)unit.statusEffects=[];unit.statusEffects.push({type:ef.type,stacks:ef.value,turnsLeft:def.type==="prevent_skill"?ef.value:undefined})}
+    if(def.type==="threshold"){
+      const e2=(unit.statusEffects||[]).find(s=>s.type===ef.type);
+      if(e2&&def.threshold&&e2.stacks>=def.threshold){
+        unit.statusEffects.push({type:def.becomes,stacks:1,turnsLeft:undefined});
+        e2.stacks=0;
+        addLog(`<span style="color:${def.color}">${unit.name}: ${def.name} threshold → ${getEffectDef(def.becomes).name}!</span>`);
+      }
+    }
+  });
+}
+function dealDamage(unit,amt){unit.hp=Math.max(0,unit.hp-amt);if(unit.hp<=0)unit.alive=false}
+
+function resolveTurn(){
+  if(!GS.battle)return;
+  GS.battle.awaitingPlayers=false;
+  const actions=[];
+  // Player actions
+  GS.sinners.filter(s=>s.alive).forEach(s=>{
+    const sel=GS.battle.playerSelections[s.playerRole];if(!sel)return;
+    if(getEffectStacks(s,'stun')>0){addLog(`<span style="color:#ffd700">${s.name} is Stunned!</span>`);return}
+    if(getEffectStacks(s,'bind')>0){addLog(`<span style="color:#4a90d9">${s.name} is Bound!</span>`);return}
+    const skill=s.skills.find(sk=>sk.id===sel.skillId);if(!skill)return;
+    if(skill.target==="self"||skill.target==="aoe_ally"){
+      actions.push({unit:s,skill,target:s,isEnemy:false,res:resolveSkill(skill),sin:skill.sin});
+    } else {
+      const t=GS.enemies.find(e=>e.uid===sel.targetId&&e.alive)||GS.enemies.find(e=>e.alive);
+      if(!t)return;
+      actions.push({unit:s,skill,target:t,isEnemy:false,res:resolveSkill(skill),sin:skill.sin});
+    }
+  });
+  // Enemy actions
+  GS.enemies.filter(e=>e.alive).forEach(e=>{
+    if(getEffectStacks(e,'stun')>0){addLog(`<span style="color:#ffd700">${e.name} is Stunned!</span>`);return}
+    if(getEffectStacks(e,'bind')>0){addLog(`<span style="color:#4a90d9">${e.name} is Bound!</span>`);return}
+    (e.selectedActions||[]).forEach(act=>{
+      const skill=e.skills.find(sk=>sk.id===act.skillId);if(!skill)return;
+      if(skill.target==="self"||skill.target==="aoe_ally"){
+        const t=GS.enemies.find(x=>x.alive)||e;
+        actions.push({unit:e,skill,target:t,isEnemy:true,res:resolveSkill(skill),sin:skill.sin});
+      } else {
+        const t=GS.sinners.find(s=>s.uid===act.targetId&&s.alive)||GS.sinners.find(s=>s.alive);
+        if(!t)return;
+        actions.push({unit:e,skill,target:t,isEnemy:true,res:resolveSkill(skill),sin:skill.sin});
+      }
+    });
+  });
+  // Sort by speed
+  actions.sort((a,b)=>getStat(b.unit,'speed')-getStat(a.unit,'speed'));
+  // Resolve
+  actions.forEach(act=>{
+    const {unit,skill,target,res,isEnemy}=act;
+    const coinsHtml=res.coins.map(c=>`<span class="coin-flip">${c}</span>`).join('');
+    const sc=isEnemy?"#e74c3c":"#2ecc71";
+    const sinc=SIN_COLORS[skill.sin]||"#fff";
+    addLog(`<span style="color:${sc}">${unit.name}</span> → <span style="color:${sinc}">${skill.name}</span> ${coinsHtml} <span class="mono">(${res.total})</span>`);
+    if(skill.type==="offensive"&&target&&target!==unit){
+      if(skill.target==="aoe_enemy"){
+        const tgts=isEnemy?GS.sinners.filter(s=>s.alive):GS.enemies.filter(e=>e.alive);
+        tgts.forEach(t=>{
+          const dmg=calcDamage(res.total,unit,t);dealDamage(t,dmg);applyEffects(t,skill.applyTo);
+          addLog(`  → ${t.name} takes <strong>${dmg}</strong>${t.hp<=0?' <span style="color:#e74c3c">[DEFEATED]</span>':''}`);
+        });
+      } else {
+        const dmg=calcDamage(res.total,unit,target);dealDamage(target,dmg);applyEffects(target,skill.applyTo);
+        addLog(`  → ${target.name} takes <strong>${dmg}</strong>${target.hp<=0?' <span style="color:#e74c3c">[DEFEATED]</span>':''}`);
+      }
+    }
+    if(skill.selfApply)applyEffects(unit,skill.selfApply);
+    if(skill.type==="support"&&skill.target==="aoe_ally"){
+      const allies=isEnemy?GS.enemies.filter(e=>e.alive):GS.sinners.filter(s=>s.alive);
+      allies.forEach(a=>{applyEffects(a,skill.applyTo)});
+    }
+  });
+  // Tick statuses
+  [...GS.sinners,...GS.enemies].filter(u=>u.alive).forEach(u=>{
+    const rm=[];
+    (u.statusEffects||[]).forEach(e=>{
+      const def=getEffectDef(e.type);
+      if(def.type==="dot"&&e.stacks>0){dealDamage(u,e.stacks);addLog(`  <span style="color:${def.color}">${u.name}: ${e.stacks} ${def.name}</span>`)}
+      if(def.type==="skip_turn")rm.push(e.type);
+      if(e.turnsLeft!==undefined){e.turnsLeft--;if(e.turnsLeft<=0)rm.push(e.type)}
+    });
+    rm.forEach(t=>{u.statusEffects=u.statusEffects.filter(e=>e.type!==t)});
+  });
+  // Win/lose check
+  if(GS.enemies.every(e=>!e.alive)){
+    addLog(`<span style="color:var(--lm-gold);font-weight:bold">ALL ENEMIES DEFEATED!</span>`);
+    GS.battle=null;
+    const floor=DUNGEON_LAYOUT.floors[GS.currentFloor];
+    const wasBoss=GS.currentNode>=floor.nodes.length+(floor.shop?1:0);
+    if(wasBoss){
+      if(GS.currentFloor>=DUNGEON_LAYOUT.floors.length-1){GS.phase="game_over";addLog(`<span style="color:var(--lm-gold);font-weight:bold">DUNGEON CLEARED!</span>`)}
+      else{GS.currentFloor++;GS.currentNode=0;GS.phase="node_select"}
+    } else {GS.currentNode++;GS.phase="node_select"}
+  } else if(GS.sinners.every(s=>!s.alive)){
+    GS.phase="game_over";addLog(`<span style="color:#e74c3c;font-weight:bold">ALL SINNERS FALLEN. DEFEAT.</span>`);
+  } else {
+    GS.battle.turn++;GS.battle.playerSelections={};GS.battle.awaitingPlayers=true;
+    GS.enemies.forEach(e=>{if(e.alive)e.selectedActions=[]});
+  }
+  saveGS();render();
+}
+
+/* ================================================================
+   SECTION 6: DUNGEON ENGINE
+   ================================================================ */
+function advanceToNode(index){
+  const floor=DUNGEON_LAYOUT.floors[GS.currentFloor];
+  // Shop is at index floor.nodes.length
+  if(index===floor.nodes.length&&floor.shop){openShop();return}
+  // Boss is after shop
+  const bossIdx=floor.nodes.length+(floor.shop?1:0);
+  if(index===bossIdx&&floor.boss){spawnEnemies(floor.boss.enemies);addLog(`<span style="color:var(--lm-red)">${floor.boss.desc}</span>`);startBattle();return}
+  // Past all nodes with no boss/shop
+  if(index>=floor.nodes.length&&(!floor.shop||index>floor.nodes.length)){
+    if(GS.currentFloor<DUNGEON_LAYOUT.floors.length-1){GS.currentFloor++;GS.currentNode=0;GS.phase="node_select"}
+    else{GS.phase="game_over";addLog("Dungeon cleared!")}
+    return;
+  }
+  if(index>=floor.nodes.length){GS.currentNode=index;GS.phase="node_select";return}
+  GS.currentNode=index;
+  const node=floor.nodes[index];
+  if(node.type==="battle"){spawnEnemies(node.enemies);addLog(node.desc);startBattle()}
+  else if(node.type==="event"){GS.eventActive=EVENTS_DB[node.eventId]||{name:"Unknown",desc:"...",choices:[{text:"Ok",outcome:{type:"nothing",msg:"..."}}]};GS.phase="event";addLog("Event: "+GS.eventActive.name)}
+  else if(node.type==="rest"){GS.sinners.forEach(s=>{if(s.alive)s.hp=Math.min(getMaxHp(s),s.hp+Math.floor(getMaxHp(s)*0.3))});addLog("Rest: All Sinners healed 30%.");GS.currentNode++;GS.phase="node_select"}
+  else{GS.currentNode++;GS.phase="node_select"}
+}
+function resolveEvent(ci){
+  const ev=GS.eventActive;if(!ev)return;
+  const ch=ev.choices[ci];if(!ch)return;
+  const out=ch.outcome;
+  addLog("→ "+ch.text);
+  if(out.cost){
+    if(out.cost.type==="damage")GS.sinners.forEach(s=>{if(s.alive)dealDamage(s,out.cost.value)});
+    if(out.cost.type==="status")GS.sinners.forEach(s=>{if(s.alive)applyEffects(s,[out.cost.effect])});
+  }
+  if(out.type==="damage")GS.sinners.forEach(s=>{if(s.alive)dealDamage(s,out.value)});
+  if(out.type==="heal")GS.sinners.forEach(s=>{if(s.alive)s.hp=Math.min(getMaxHp(s),s.hp+out.value)});
+  if(out.type==="ego_gift"){const s=GS.sinners.find(s=>s.alive);if(s&&!s.egoGifts.includes(out.gift))s.egoGifts.push(out.gift)}
+  if(out.type==="status")GS.sinners.forEach(s=>{if(s.alive)applyEffects(s,[out.effect])});
+  addLog(out.msg);
+  GS.eventActive=null;GS.currentNode++;
+  const floor=DUNGEON_LAYOUT.floors[GS.currentFloor];
+  if(GS.currentNode>=floor.nodes.length){
+    if(floor.shop){openShop();return}
+    const bossIdx=floor.nodes.length+(floor.shop?1:0);
+    if(floor.boss){spawnEnemies(floor.boss.enemies);addLog(floor.boss.desc);startBattle();return}
+    if(GS.currentFloor<DUNGEON_LAYOUT.floors.length-1){GS.currentFloor++;GS.currentNode=0}
+    else{GS.phase="game_over"}
+  }
+  GS.phase="node_select";
+}
+function openShop(){
+  GS.phase="shop";
+  const all=Object.keys(EGO_GIFTS_DB).sort(()=>Math.random()-.5);
+  GS.shopGifts=all.slice(0,Math.min(5,all.length));
+  addLog("Shop appeared. Pick Ego Gifts.");
+}
+function resolveShopPick(role,giftId){
+  const s=GS.sinners.find(s=>s.playerRole===role&&s.alive);
+  if(!s)return;
+  if(s.egoGifts.length>=4){showToast("Max 4 gifts per Sinner");return}
+  if(s.egoGifts.includes(giftId)){showToast("Already has this gift");return}
+  s.egoGifts.push(giftId);
+  GS.shopGifts=GS.shopGifts.filter(g=>g!==giftId);
+  addLog(s.name+" acquired "+EGO_GIFTS_DB[giftId].name);
+  if(GS.shopGifts.length===0){
+    const floor=DUNGEON_LAYOUT.floors[GS.currentFloor];
+    if(floor.boss){spawnEnemies(floor.boss.enemies);addLog(floor.boss.desc);startBattle()}
+    else{GS.currentNode++;if(GS.currentFloor<DUNGEON_LAYOUT.floors.length-1){GS.currentFloor++;GS.currentNode=0}else GS.phase="game_over";GS.phase="node_select"}
+  }
+}
+
+/* ================================================================
+   SECTION 7: UI HELPERS
+   ================================================================ */
+function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active')}
+function addLog(html){LOG.push(html);if(LOG.length>200)LOG=LOG.slice(-150)}
+function clearLog(){LOG=[];render()}
+function showToast(msg){
+  const c=document.getElementById('toast-container');
+  const d=document.createElement('div');d.className='toast';d.textContent=msg;
+  c.appendChild(d);setTimeout(()=>d.remove(),3000);
+}
+function statusBadge(se){
+  const def=getEffectDef(se.type);
+  return `<span class="status-badge" style="background:${def.color}22;color:${def.color}"><i class="fa-solid ${def.icon}" style="font-size:9px"></i>${def.name} ${se.stacks}</span>`;
+}
+function unitCard(u,mode){
+  const mx=getMaxHp(u),pct=u.alive?Math.max(0,u.hp/mx*100):0;
+  const sc=SIN_COLORS[u.sinAff]||"#fff";
+  let h=`<div class="rounded-lg p-3 mb-2" style="background:var(--lm-card);border:1px solid var(--lm-border)">
+    <div class="flex items-center gap-2 mb-1">
+      <span class="font-bold text-sm" style="color:${sc}">${u.name}</span>
+      ${!u.alive?'<span class="text-xs" style="color:#e74c3c">FALLEN</span>':''}
+      <span class="text-xs ml-auto mono" style="color:var(--lm-muted)">SPD${getStat(u,'speed')} ATK${getStat(u,'attack')} DEF${getStat(u,'defense')}</span>
+    </div>
+    <div class="hp-bar"><div class="hp-fill" style="width:${pct}%;background:${hpColor(u.hp,mx)}"></div></div>
+    <div class="mono text-xs mt-1" style="color:var(--lm-muted)">${u.hp}/${mx}</div>
+    <div class="flex flex-wrap gap-1 mt-1">${(u.statusEffects||[]).map(statusBadge).join('')}</div>`;
+  if(mode==='full'){
+    h+=`<div class="mt-2 flex flex-wrap gap-1">${(u.egoGifts||[]).map(g=>{const gd=EGO_GIFTS_DB[g];return gd?`<span class="gift-badge"><i class="fa-solid ${gd.icon}"></i>${gd.name}</span>`:''}).join('')}</div>`;
+  }
+  return h+'</div>';
+}
+
+/* ================================================================
+   SECTION 8: RENDER
+   ================================================================ */
+function render(){
+  if(!GS||!MY_ROLE)return;
+  if(GS.phase==='lobby'){renderLobby();return}
+  renderGame();
+}
+function renderLobby(){
+  showScreen('screen-lobby');
+  const el=document.getElementById('lobby-list');
+  el.innerHTML=ROLES.map(r=>{
+    const c=GS.connectedRoles[r],nm=r==='dm'?'Dungeon Master':`Player ${r[1]}`;
+    return `<div class="flex items-center gap-2 px-4 py-2 rounded-lg" style="background:var(--lm-card);border:1px solid ${c?'var(--lm-gold)':'var(--lm-border)'}">
+      <i class="fa-solid ${r==='dm'?'fa-eye':'fa-user'}" style="color:${c?'var(--lm-gold)':'var(--lm-muted)'}"></i>
+      <span class="font-bold">${nm}</span>
+      <span class="text-xs" style="color:${c?'#2ecc71':'var(--lm-muted)'}">${c?'Connected':'Waiting...'}</span>
+    </div>`;
+  }).join('');
+  const all=GS.connectedRoles.dm&&GS.connectedRoles.p1&&GS.connectedRoles.p2&&GS.connectedRoles.p3&&GS.connectedRoles.p4;
+  document.getElementById('btn-start').classList.toggle('hidden',!all||MY_ROLE!=='dm');
+}
+function renderGame(){
+  showScreen('screen-game');
+  document.body.setAttribute('data-role',MY_ROLE);
+  const fl=DUNGEON_LAYOUT.floors[GS.currentFloor];
+  document.getElementById('hdr-floor').textContent=`Floor ${fl.number}/${DUNGEON_LAYOUT.floors.length}`;
+  document.getElementById('hdr-phase').textContent=GS.phase.replace('_',' ').toUpperCase();
+  document.getElementById('hdr-role').innerHTML=`<i class="fa-solid ${MY_ROLE==='dm'?'fa-eye':'fa-user'} mr-1" style="color:${MY_ROLE==='dm'?'var(--lm-red)':'var(--lm-gold)'}"></i>${ROLE_NAMES[MY_ROLE]}`;
+  document.getElementById('log-content').innerHTML=LOG.map(l=>`<div class="log-entry">${l}</div>`).join('');
+  const lc=document.getElementById('log-content');if(lc)lc.scrollTop=lc.scrollHeight;
+  switch(GS.phase){
+    case 'node_select':renderNodeSelect();break;
+    case 'event':renderEvent();break;
+    case 'battle':renderBattle();break;
+    case 'shop':renderShop();break;
+    case 'game_over':renderGameOver();break;
+  }
+}
+function renderNodeSelect(){
+  const fl=DUNGEON_LAYOUT.floors[GS.currentFloor];
+  document.getElementById('panel-left').innerHTML=`<h3 class="text-sm font-bold mb-3" style="color:var(--lm-muted)">SINNERS</h3>${GS.sinners.map(s=>unitCard(s,'full')).join('')}`;
+  const rem=fl.nodes.slice(GS.currentNode);
+  const icons={battle:'fa-skull-crossbones',event:'fa-question',rest:'fa-bed'};
+  const cols={battle:'var(--lm-red)',event:'var(--lm-gold)',rest:'#2ecc71'};
+  let nh=rem.map((n,i)=>{
+    const ri=GS.currentNode+i;
+    return `<button class="node-btn flex items-center gap-3 w-full text-left" onclick="pickNode(${ri})">
+      <i class="fa-solid ${icons[n.type]||'fa-circle'} text-xl" style="color:${cols[n.type]}"></i>
+      <div><div class="font-bold text-sm">${n.type.toUpperCase()}</div><div class="text-xs" style="color:var(--lm-muted)">${n.desc||''}</div></div>
+    </button>`;
+  }).join('');
+  if(fl.shop){const si=fl.nodes.length;nh+=`<button class="node-btn flex items-center gap-3 w-full text-left" onclick="pickNode(${si})"><i class="fa-solid fa-store text-xl" style="color:#3498db"></i><div><div class="font-bold text-sm">SHOP</div><div class="text-xs" style="color:var(--lm-muted)">Ego Gifts</div></div></button>`}
+  if(fl.boss){const bi=fl.nodes.length+(fl.shop?1:0);nh+=`<button class="node-btn flex items-center gap-3 w-full text-left" style="border-color:var(--lm-red)" onclick="pickNode(${bi})"><i class="fa-solid fa-crown text-xl" style="color:var(--lm-gold)"></i><div><div class="font-bold text-sm" style="color:var(--lm-gold)">BOSS</div><div class="text-xs" style="color:var(--lm-muted)">${fl.boss.desc}</div></div></button>`}
+  document.getElementById('panel-center').innerHTML=`<h3 class="text-sm font-bold mb-4" style="color:var(--lm-muted)">CHOOSE NEXT NODE</h3><div class="flex flex-col gap-3 max-w-md mx-auto">${nh}</div>`;
+  document.getElementById('panel-right').innerHTML=`<h3 class="text-sm font-bold mb-3" style="color:var(--lm-muted)">EGO GIFTS</h3>${GS.sinners.map(s=>`<div class="mb-3"><div class="text-xs font-bold mb-1" style="color:${SIN_COLORS[s.sinAff]}">${s.name}</div><div class="flex flex-wrap gap-1">${(s.egoGifts||[]).map(g=>{const gd=EGO_GIFTS_DB[g];return gd?`<span class="gift-badge"><i class="fa-solid ${gd.icon}"></i>${gd.name}</span>`:''}).join('')}</div></div>`).join('')}`;
+}
+function renderBattle(){
+  const b=GS.battle;
+  // Left panel
+  if(MY_ROLE==='dm'){
+    document.getElementById('panel-left').innerHTML=`<h3 class="text-sm font-bold mb-3" style="color:var(--lm-muted)">SINNERS</h3>${GS.sinners.map(s=>unitCard(s,'full')).join('')}`;
+  } else {
+    const ms=GS.sinners.find(s=>s.playerRole===MY_ROLE);
+    document.getElementById('panel-left').innerHTML=`<h3 class="text-sm font-bold mb-3" style="color:var(--lm-muted)">MY SINNER</h3>${ms?unitCard(ms,'full'):''}<div class="mt-3"><h3 class="text-sm font-bold mb-2" style="color:var(--lm-muted)">ALLIES</h3>${GS.sinners.filter(s=>s.playerRole!==MY_ROLE).map(s=>unitCard(s,'compact')).join('')}</div>`;
+  }
+  // Center — battlefield
+  let ch=`<div class="flex items-center justify-between mb-3"><span class="mono text-sm" style="color:var(--lm-gold)">TURN ${b.turn}</span>${b.awaitingPlayers?'<span class="text-xs pulse" style="color:var(--lm-gold)">Awaiting selections...</span>':'<span class="text-xs" style="color:var(--lm-muted)">Resolving...</span>'}</div><div class="glow-line mb-4"></div>`;
+  ch+=`<h3 class="text-sm font-bold mb-3" style="color:var(--lm-red)">ENEMIES</h3><div class="flex flex-wrap gap-3 mb-4">`;
+  GS.enemies.forEach(e=>{
+    const mx=getMaxHp(e);
+    ch+=`<div class="rounded-lg p-3" style="background:var(--lm-card);border:1px solid var(--lm-border);min-width:170px">
+      <div class="flex items-center gap-2 mb-1">${e.isBoss?'<i class="fa-solid fa-crown text-xs" style="color:var(--lm-gold)"></i>':''}<span class="font-bold text-sm">${e.name}</span>${!e.alive?'<span class="text-xs" style="color:#e74c3c">DEAD</span>':''}</div>
+      <div class="hp-bar mb-1"><div class="hp-fill" style="width:${e.alive?e.hp/mx*100:0}%;background:${hpColor(e.hp,mx)}"></div></div>
+      <div class="mono text-xs" style="color:var(--lm-muted)">${e.hp}/${mx}</div>
+      <div class="flex flex-wrap gap-1 mt-1">${(e.statusEffects||[]).map(statusBadge).join('')}</div>
+    </div>`;
+  });
+  ch+=`</div>`;
+  if(MY_ROLE==='dm'){
+    ch+=`<div class="mt-2 text-xs" style="color:var(--lm-muted)">Selections: ${['p1','p2','p3','p4'].map(r=>`<span style="color:${b.playerSelections[r]?'#2ecc71':'var(--lm-muted)'}">${ROLE_NAMES[r]}</span>`).join(' / ')}</div>`;
+  }
+  document.getElementById('panel-center').innerHTML=ch;
+  // Right panel
+  if(MY_ROLE==='dm')renderDMPanel();else renderPlayerPanel();
+}
+function renderDMPanel(){
+  let h=`<h3 class="text-sm font-bold mb-3" style="color:var(--lm-red)">ENEMY CONTROL</h3>`;
+  GS.enemies.filter(e=>e.alive).forEach(e=>{
+    h+=`<div class="mb-4 rounded-lg p-3" style="background:var(--lm-card);border:1px solid var(--lm-border)">
+      <div class="flex items-center justify-between mb-2"><span class="font-bold text-sm" style="color:var(--lm-red)">${e.name}</span><span class="mono text-xs" style="color:var(--lm-muted)">Actions: ${(e.selectedActions||[]).length}/${e.actionsPerTurn}</span></div>`;
+    e.skills.forEach(sk=>{
+      h+=`<div class="skill-card mb-2 text-xs" style="cursor:default">
+        <div class="flex items-center justify-between mb-1"><span class="font-bold" style="color:${SIN_COLORS[sk.sin]}">${sk.name}</span><span class="mono" style="color:var(--lm-muted)">${sk.coins}c [${sk.coinMin}-${sk.coinMax}] B:${sk.baseValue}</span></div>
+        <div class="mb-2" style="color:var(--lm-muted)">${sk.desc}</div>
+        ${sk.applyTo?.length?'<div class="mb-1">'+sk.applyTo.map(a=>`<span class="status-badge" style="background:${getEffectDef(a.type).color}22;color:${getEffectDef(a.type).color}">${getEffectDef(a.type).name} ${a.value}${a.chance<100?' '+a.chance+'%':''}</span>`).join(' ')+'</div>':''}
+        <div class="flex gap-1">
+          <select class="flex-1 text-xs" data-euid="${e.uid}" data-skid="${sk.id}">${GS.sinners.filter(s=>s.alive).map(s=>`<option value="${s.uid}">${s.name}</option>`).join('')}</select>
+          <button class="px-3 py-1 rounded text-xs font-bold" style="background:var(--lm-red);color:#fff" onclick="addEnemyAction('${e.uid}','${sk.id}')">Add</button>
+        </div>
+      </div>`;
+    });
+    h+=`</div>`;
+  });
+  h+=`<button class="w-full py-3 rounded-lg font-bold text-sm" style="background:var(--lm-red);color:#fff" onclick="resolveTurn()"><i class="fa-solid fa-bolt mr-1"></i>RESOLVE TURN</button>`;
+  h+=`<button class="w-full py-2 rounded-lg font-bold text-xs mt-2" style="background:var(--lm-card);border:1px solid var(--lm-border);color:var(--lm-muted)" onclick="clearEnemyActions()"><i class="fa-solid fa-rotate-left mr-1"></i>Clear All Enemy Actions</button>`;
+  document.getElementById('panel-right').innerHTML=h;
+}
+function renderPlayerPanel(){
+  const ms=GS.sinners.find(s=>s.playerRole===MY_ROLE);
+  if(!ms||!ms.alive){document.getElementById('panel-right').innerHTML=`<p class="text-sm" style="color:var(--lm-muted)">Your Sinner has fallen.</p>`;return}
+  const b=GS.battle,hasSel=!!b.playerSelections[MY_ROLE];
+  const stunned=getEffectStacks(ms,'stun')>0,bound=getEffectStacks(ms,'bind')>0;
+  let h=`<h3 class="text-sm font-bold mb-3" style="color:var(--lm-gold)">SELECT SKILL</h3>`;
+  if(stunned||bound){
+    h+=`<div class="text-center py-8 rounded-lg" style="background:var(--lm-card);border:1px solid var(--lm-border)">
+      <i class="fa-solid ${stunned?'fa-star':'fa-link'} text-3xl mb-2 float-anim" style="color:${stunned?'#ffd700':'#4a90d9'}"></i>
+      <p class="font-bold">${stunned?'STUNNED':'BOUND'}</p>
+      <p class="text-xs" style="color:var(--lm-muted)">Cannot act. Waiting for DM to resolve turn.</p>
+    </div>`;
+  } else {
+    ms.skills.forEach(sk=>{
+      const sel=hasSel&&b.playerSelections[MY_ROLE].skillId===sk.id;
+      h+=`<div class="skill-card mb-2 ${sel?'selected':''} ${hasSel&&!sel?'disabled':''}" onclick="selectSkill('${sk.id}')">
+        <div class="flex items-center justify-between mb-1"><span class="font-bold" style="color:${SIN_COLORS[sk.sin]}"><i class="fa-solid ${SIN_ICONS[sk.sin]} mr-1 text-xs"></i>${sk.name}</span><span class="mono text-xs" style="color:var(--lm-muted)">${sk.coins}c [${sk.coinMin}-${sk.coinMax}]</span></div>
+        <div class="text-xs" style="color:var(--lm-muted)">${sk.desc}</div>
+        ${sk.applyTo?.length?'<div class="flex flex-wrap gap-1 mt-1">'+sk.applyTo.map(a=>`<span class="status-badge" style="background:${getEffectDef(a.type).color}22;color:${getEffectDef(a.type).color}">${getEffectDef(a.type).name} ${a.value}</span>`).join('')+'</div>':''}
+        ${sk.selfApply?.length?'<div class="flex flex-wrap gap-1 mt-1">'+sk.selfApply.map(a=>`<span class="status-badge" style="background:${getEffectDef(a.type).color}22;color:${getEffectDef(a.type).color}">${getEffectDef(a.type).name} ${a.value} <span style="opacity:.6">(self)</span></span>`).join('')+'</div>':''}
+      </div>`;
+    });
+    if(hasSel){
+      const selSk=ms.skills.find(s=>s.id===b.playerSelections[MY_ROLE].skillId);
+      if(selSk&&selSk.type==="offensive"&&selSk.target==="single"){
+        h+=`<h4 class="text-xs font-bold mb-2 mt-3" style="color:var(--lm-muted)">TARGET</h4>`;
+        GS.enemies.filter(e=>e.alive).forEach(e=>{
+          const isT=b.playerSelections[MY_ROLE].targetId===e.uid;
+          h+=`<button class="w-full text-left rounded-lg p-2 mb-1 text-xs" style="background:var(--lm-card);border:1px solid ${isT?'var(--lm-gold)':'var(--lm-border)'}" onclick="selectTarget('${e.uid}')"><span class="font-bold">${e.name}</span> <span class="mono" style="color:var(--lm-muted)">${e.hp}/${getMaxHp(e)}</span></button>`;
+        });
+      }
+      h+=`<button class="w-full mt-3 py-2 rounded-lg font-bold text-sm" style="background:var(--lm-gold);color:#000" onclick="confirmSkill()"><i class="fa-solid fa-check mr-1"></i>CONFIRM</button>`;
+    }
+  }
+  document.getElementById('panel-right').innerHTML=h;
+}
+function renderEvent(){
+  const ev=GS.eventActive;if(!ev)return;
+  document.getElementById('panel-left').innerHTML=`<h3 class="text-sm font-bold mb-3" style="color:var(--lm-muted)">SINNERS</h3>${GS.sinners.map(s=>unitCard(s,'compact')).join('')}`;
+  document.getElementById('panel-center').innerHTML=`<div class="max-w-lg mx-auto mt-8 rounded-xl p-6" style="background:var(--lm-card);border:1px solid var(--lm-border)">
+    <div class="text-center mb-4"><i class="fa-solid fa-question text-4xl mb-3 float-anim" style="color:var(--lm-gold)"></i><h2 class="text-2xl font-bold">${ev.name}</h2><p class="text-sm mt-2" style="color:var(--lm-muted)">${ev.desc}</p></div>
+    <div class="glow-line mb-4"></div>
+    <div class="flex flex-col gap-2">${ev.choices.map((c,i)=>`<button class="node-btn text-left" onclick="pickEvent(${i})">${c.text}</button>`).join('')}</div>
+  </div>`;
+  document.getElementById('panel-right').innerHTML=`<h3 class="text-sm font-bold mb-3" style="color:var(--lm-muted)">EGO GIFTS</h3>${GS.sinners.map(s=>`<div class="mb-3"><div class="text-xs font-bold mb-1" style="color:${SIN_COLORS[s.sinAff]}">${s.name}</div><div class="flex flex-wrap gap-1">${(s.egoGifts||[]).map(g=>{const gd=EGO_GIFTS_DB[g];return gd?`<span class="gift-badge"><i class="fa-solid ${gd.icon}"></i>${gd.name}</span>`:''}).join('')}</div></div>`).join('')}`;
+}
+function renderShop(){
+  document.getElementById('panel-left').innerHTML=`<h3 class="text-sm font-bold mb-3" style="color:var(--lm-muted)">SINNERS</h3>${GS.sinners.map(s=>unitCard(s,'compact')).join('')}`;
+  document.getElementById('panel-center').innerHTML=`<div class="max-w-lg mx-auto mt-8">
+    <div class="text-center mb-6"><i class="fa-solid fa-store text-4xl mb-3 float-anim" style="color:#3498db"></i><h2 class="text-2xl font-bold">EGO GIFT SHOP</h2><p class="text-sm mt-1" style="color:var(--lm-muted)">Pick a gift for your Sinner (max 4)</p></div>
+    <div class="glow-line mb-6"></div>
+    <div class="grid grid-cols-2 gap-3">${GS.shopGifts.map(gid=>{const g=EGO_GIFTS_DB[gid];return g?`<div class="node-btn text-center p-4" onclick="pickGift('${gid}')"><i class="fa-solid ${g.icon} text-2xl mb-2" style="color:var(--lm-gold)"></i><div class="font-bold text-sm">${g.name}</div><div class="text-xs mt-1" style="color:var(--lm-muted)">${g.desc}</div></div>`:''}).join('')}</div>
+    ${GS.shopGifts.length===0?'<p class="text-center text-sm mt-4" style="color:var(--lm-muted)">All gifts claimed.</p>':''}
+  </div>`;
+  document.getElementById('panel-right').innerHTML=`<h3 class="text-sm font-bold mb-3" style="color:var(--lm-muted)">GIFTS HELD</h3>${MY_ROLE!=='dm'?'<p class="text-xs mb-3" style="color:var(--lm-muted)">Click a gift to claim it.</p>':''}${GS.sinners.map(s=>`<div class="mb-3"><div class="text-xs font-bold mb-1" style="color:${SIN_COLORS[s.sinAff]}">${s.name} (${(s.egoGifts||[]).length}/4)</div><div class="flex flex-wrap gap-1">${(s.egoGifts||[]).map(g=>{const gd=EGO_GIFTS_DB[g];return gd?`<span class="gift-badge"><i class="fa-solid ${gd.icon}"></i>${gd.name}</span>`:''}).join('')}</div></div>`).join('')}`;
+}
+function renderGameOver(){
+  const won=!GS.sinners.every(s=>!s.alive);
+  document.getElementById('panel-left').innerHTML=`<h3 class="text-sm font-bold mb-3" style="color:var(--lm-muted)">FINAL STATE</h3>${GS.sinners.map(s=>unitCard(s,'full')).join('')}`;
+  document.getElementById('panel-center').innerHTML=`<div class="text-center mt-16">
+    <i class="fa-solid ${won?'fa-trophy':'fa-skull'} text-6xl mb-4 float-anim" style="color:${won?'var(--lm-gold)':'#e74c3c'}"></i>
+    <h2 class="text-3xl font-bold">${won?'DUNGEON CLEARED':'DEFEAT'}</h2>
+    <p class="text-sm mt-2" style="color:var(--lm-muted)">${won?'All threats neutralized.':'The Mirror Dungeon claims more souls.'}</p>
+    ${MY_ROLE==='dm'?`<button class="mt-6 px-6 py-2 rounded-lg font-bold" style="background:var(--lm-red);color:#fff" onclick="resetGame()">New Dungeon</button>`:''}
+  </div>`;
+  document.getElementById('panel-right').innerHTML=`<h3 class="text-sm font-bold mb-3" style="color:var(--lm-muted)">COLLECTED GIFTS</h3>${GS.sinners.map(s=>`<div class="mb-3"><div class="text-xs font-bold mb-1" style="color:${SIN_COLORS[s.sinAff]}">${s.name}</div><div class="flex flex-wrap gap-1">${(s.egoGifts||[]).map(g=>{const gd=EGO_GIFTS_DB[g];return gd?`<span class="gift-badge"><i class="fa-solid ${gd.icon}"></i>${gd.name}</span>`:''}).join('')}</div></div>`).join('')}`;
+}
+
+/* ================================================================
+   SECTION 9: PLAYER ACTIONS
+   ================================================================ */
+function pickNode(idx){
+  if(MY_ROLE==='dm'){updateGS(s=>{s.battle=null;s.eventActive=null;advanceToNode(idx)})}
+  else{sendMsg('node_choice',{index:idx});showToast("Node choice sent to DM")}
+}
+function pickEvent(idx){
+  if(MY_ROLE==='dm'){updateGS(s=>resolveEvent(idx))}
+  else{sendMsg('event_choice',{index:idx});showToast("Event choice sent")}
+}
+function pickGift(gid){
+  if(MY_ROLE==='dm'){showToast("Players pick their own gifts")}
+  else{sendMsg('shop_pick',{giftId:gid});showToast("Gift choice sent")}
+}
+function selectSkill(sid){
+  const ms=GS.sinners.find(s=>s.playerRole===MY_ROLE);if(!ms)return;
+  const defT=GS.enemies.find(e=>e.alive);
+  GS.battle.playerSelections[MY_ROLE]={skillId:sid,targetId:defT?defT.uid:null};
+  saveGS();render();
+}
+function selectTarget(uid){
+  if(GS.battle.playerSelections[MY_ROLE]){GS.battle.playerSelections[MY_ROLE].targetId=uid;saveGS();render()}
+}
+function confirmSkill(){
+  const sel=GS.battle.playerSelections[MY_ROLE];if(!sel)return;
+  sendMsg('skill_select',{skillId:sel.skillId,targetId:sel.targetId});
+  showToast("Skill locked in!");
+}
+
+/* ================================================================
+   SECTION 10: DM ACTIONS
+   ================================================================ */
+function addEnemyAction(euid,skid){
+  const e=GS.enemies.find(x=>x.uid===euid);if(!e)return;
+  if(!e.selectedActions)e.selectedActions=[];
+  if(e.selectedActions.length>=e.actionsPerTurn){showToast(`Max ${e.actionsPerTurn} actions for ${e.name}`);return}
+  const sel=document.querySelector(`select[data-euid="${euid}"][data-skid="${skid}"]`);
+  const tid=sel?sel.value:GS.sinners.find(s=>s.alive)?.uid;
+  e.selectedActions.push({skillId:skid,targetId:tid});
+  saveGS();render();
+}
+function clearEnemyActions(){GS.enemies.forEach(e=>{if(e.alive)e.selectedActions=[]});saveGS();render()}
+
+/* ================================================================
+   SECTION 11: DM EDITOR
+   ================================================================ */
+let editorTab='sinners';
+function openEditor(){document.getElementById('modal-overlay').style.display='flex';renderEditor()}
+function closeModal(){document.getElementById('modal-overlay').style.display='none'}
+function renderEditor(){
+  const tabs=['sinners','enemies','status','gifts','events'];
+  const names={sinners:'Sinners',enemies:'Enemies/Bosses',status:'Status Effects',gifts:'Ego Gifts',events:'Events'};
+  let h=`<div class="flex items-center justify-between mb-4"><h2 class="text-xl font-bold" style="color:var(--lm-gold)">DM Editor</h2><button class="text-sm px-3 py-1 rounded" style="background:var(--lm-card);border:1px solid var(--lm-border);color:var(--lm-muted)" onclick="closeModal()">Close</button></div>
+  <div class="flex gap-1 mb-4">${tabs.map(t=>`<button class="tab-btn ${editorTab===t?'active':''}" onclick="editorTab='${t}';renderEditor()">${names[t]}</button>`).join('')}</div>
+  <p class="text-xs mb-3" style="color:var(--lm-muted)">Edit runtime values below. To add NEW entries, edit the DATA section at the top of the HTML source code.</p>`;
+  if(editorTab==='sinners'){
+    h+=GS.sinners.map((s,i)=>`<div class="rounded-lg p-3 mb-3" style="background:var(--lm-dark);border:1px solid var(--lm-border)">
+      <div class="font-bold text-sm mb-2" style="color:${SIN_COLORS[s.sinAff]}">${s.name} <span class="mono text-xs" style="color:var(--lm-muted)">(${s.playerRole})</span></div>
+      <div class="grid grid-cols-3 gap-2 text-xs">
+        <div>HP: <input type="number" value="${s.hp}" class="w-20" onchange="editSinner(${i},'hp',+this.value)"></div>
+        <div>MaxHP: <input type="number" value="${s.maxHp}" class="w-20" onchange="editSinner(${i},'maxHp',+this.value)"></div>
+        <div>ATK: <input type="number" value="${s.attack}" class="w-20" onchange="editSinner(${i},'attack',+this.value)"></div>
+        <div>DEF: <input type="number" value="${s.defense}" class="w-20" onchange="editSinner(${i},'defense',+this.value)"></div>
+        <div>SPD: <input type="number" value="${s.speed}" class="w-20" onchange="editSinner(${i},'speed',+this.value)"></div>
+        <div>Alive: <input type="checkbox" ${s.alive?'checked':''} onchange="editSinner(${i},'alive',this.checked)"></div>
+      </div>
+      <div class="mt-2"><button class="text-xs px-2 py-1 rounded" style="background:var(--lm-card);border:1px solid var(--lm-border);color:var(--lm-muted)" onclick="editSinner(${i},'statusEffects',[])">Clear Statuses</button>
+      <button class="text-xs px-2 py-1 rounded ml-1" style="background:var(--lm-card);border:1px solid var(--lm-border);color:var(--lm-muted)" onclick="editSinner(${i},'egoGifts',[])">Clear Gifts</button></div>
+    </div>`).join('');
+  } else if(editorTab==='enemies'){
+    h+=GS.enemies.map((e,i)=>`<div class="rounded-lg p-3 mb-3" style="background:var(--lm-dark);border:1px solid var(--lm-border)">
+      <div class="font-bold text-sm mb-2" style="color:var(--lm-red)">${e.name} ${e.isBoss?'<i class="fa-solid fa-crown text-xs" style="color:var(--lm-gold)"></i>':''}</div>
+      <div class="grid grid-cols-3 gap-2 text-xs">
+        <div>HP: <input type="number" value="${e.hp}" class="w-20" onchange="editEnemy(${i},'hp',+this.value)"></div>
+        <div>MaxHP: <input type="number" value="${e.maxHp}" class="w-20" onchange="editEnemy(${i},'maxHp',+this.value)"></div>
+        <div>ATK: <input type="number" value="${e.attack}" class="w-20" onchange="editEnemy(${i},'attack',+this.value)"></div>
+        <div>DEF: <input type="number" value="${e.defense}" class="w-20" onchange="editEnemy(${i},'defense',+this.value)"></div>
+        <div>SPD: <input type="number" value="${e.speed}" class="w-20" onchange="editEnemy(${i},'speed',+this.value)"></div>
+        <div>Alive: <input type="checkbox" ${e.alive?'checked':''} onchange="editEnemy(${i},'alive',this.checked)"></div>
+      </div>
+      <div class="mt-2"><button class="text-xs px-2 py-1 rounded" style="background:var(--lm-card);border:1px solid var(--lm-border);color:var(--lm-muted)" onclick="editEnemy(${i},'statusEffects',[])">Clear Statuses</button></div>
+    </div>`).join('');
+  } else if(editorTab==='status'){
+    h+=`<div class="text-xs" style="color:var(--lm-muted)">Current status effects in the database. To add new ones, edit STATUS_DB in the source code.</div>`;
+    h+=Object.entries(STATUS_DB).map(([k,v])=>`<div class="rounded-lg p-2 mb-2 flex items-center gap-3" style="background:var(--lm-dark);border:1px solid var(--lm-border)">
+      <span class="status-badge" style="background:${v.color}22;color:${v.color}"><i class="fa-solid ${v.icon}" style="font-size:9px"></i>${v.name}</span>
+      <span class="mono text-xs" style="color:var(--lm-muted)">type:${v.type} stackable:${v.stackable} max:${v.max||'inf'}</span>
+    </div>`).join('');
+  } else if(editorTab==='gifts'){
+    h+=Object.entries(EGO_GIFTS_DB).map(([k,v])=>`<div class="rounded-lg p-2 mb-2 flex items-center gap-3" style="background:var(--lm-dark);border:1px solid var(--lm-border)">
+      <i class="fa-solid ${v.icon}" style="color:var(--lm-gold)"></i>
+      <span class="font-bold text-sm">${v.name}</span>
+      <span class="text-xs" style="color:var(--lm-muted)">${v.desc}</span>
+    </div>`).join('');
+  } else if(editorTab==='events'){
+    h+=Object.entries(EVENTS_DB).map(([k,v])=>`<div class="rounded-lg p-3 mb-3" style="background:var(--lm-dark);border:1px solid var(--lm-border)">
+      <div class="font-bold text-sm mb-1">${v.name}</div>
+      <div class="text-xs mb-2" style="color:var(--lm-muted)">${v.desc}</div>
+      ${v.choices.map(c=>`<div class="text-xs mb-1">→ ${c.text}: <span style="color:var(--lm-gold)">${c.outcome.msg}</span></div>`).join('')}
+    </div>`).join('');
+  }
+  document.getElementById('modal-body').innerHTML=h;
+}
+function editSinner(i,key,val){updateGS(s=>{if(key==='statusEffects'||key==='egoGifts')s.sinners[i][key]=val;else s.sinners[i][key]=val});renderEditor()}
+function editEnemy(i,key,val){updateGS(s=>{if(key==='statusEffects')s.enemies[i][key]=val;else s.enemies[i][key]=val});renderEditor()}
+
+/* ================================================================
+   SECTION 12: MISC FUNCTIONS
+   ================================================================ */
+function selectRole(role){
+  MY_ROLE=role;
+  // DM creates/loads state
+  if(role==='dm'){
+    loadGS();
+    if(!GS||GS.phase==='game_over'){GS=freshState()}
+    GS.connectedRoles.dm=true;
+    saveGS();
+  } else {
+    // Player waits for state to exist
+    let tries=0;
+    const check=()=>{
+      loadGS();
+      if(GS&&GS.phase==='lobby'){GS.connectedRoles[role]=true;saveGS();sendMsg('join',{});render();return}
+      tries++;if(tries<100)setTimeout(check,300);
+      else{showToast("Could not connect. Make sure DM has opened the page.")}
+    };
+    check();
+    showToast("Connecting to DM...");
+  }
+  render();
+}
+function startDungeon(){
+  if(MY_ROLE!=='dm')return;
+  updateGS(s=>{initSinners();s.phase="node_select"});
+}
+function resetGame(){
+  localStorage.removeItem('limbus_gs');LOG=[];
+  GS=freshState();GS.connectedRoles.dm=true;
+  saveGS();render();
+}
+function exportState(){
+  const blob=new Blob([JSON.stringify(GS,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='mirror_dungeon_save.json';a.click();
+  showToast("State saved to file");
+}
+function importState(ev){
+  const file=ev.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{GS=JSON.parse(e.target.result);saveGS();showToast("State loaded!");render()}
+    catch(ex){showToast("Invalid save file")}
+  };
+  reader.readAsText(file);
+}
+
+// INIT
+document.addEventListener('DOMContentLoaded',()=>{render()});
+</script>
+</body>
+</html>
