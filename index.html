@@ -658,8 +658,8 @@ if(role==="dm"){ld();if(!GS||GS.ph==="game_over"){GS=fs()}GS.cr.dm=true;sv()}
 else{var tries=0;var ck=function(){ld();if(GS&&GS.ph==="lobby"){GS.cr[role]=true;sv();sm("join",{});ren();return}tries++;if(tries<100)setTimeout(ck,300);else toast("Can't connect. DM must open first.")};ck();toast("Connecting...")}
 ren();
 }
-function go(){if(MR!=="dm")return;up(function(s){isin()});}
-function resetG(){localStorage.removeItem("lg");LG=[];GS=fs();GS.cr.dm=true;sv();ren()}
+function go(){if(MR!=="dm")return;up(function(s){isin();s.ph="floor_pack";genFN()})}
+function resetG(){localStorage.removeItem("lg");LG=[];GS=fs();GS.cr.dm=true;sv();ren()} 
 function expS(){var b=new Blob([JSON.stringify(GS,null,2)],{type:"application/json"});var a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="mirror_dungeon.json";a.click();toast("Saved")}
 function impS(ev){var f=ev.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(e){try{GS=JSON.parse(e.target.result);sv();toast("Loaded!");ren()}catch(ex){toast("Bad file")}};r.readAsText(f)}
 
